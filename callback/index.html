@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-HVqxdFU9H6V/zZoNzAqqs7JtdaZuGJ1rL0lgBZLJ4F8='; style-src 'unsafe-inline'">
+<meta name="referrer" content="no-referrer">
+<title>Back to your music node</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 48px 16px; background: #111; color: #eee; }
+  main { max-width: 520px; margin: 0 auto; }
+  a { color: #b9a6ff; word-break: break-all; }
+  @media (prefers-color-scheme: light) { body { background: #fafafa; color: #111; } a { color: #5b3fd6; } }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Returning to your music node…</h1>
+  <p id="text">If nothing happens, check that your node is running.</p>
+</main>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var state = q.get('state') || '';
+  var dot = state.indexOf('.');
+  var target = null;
+  try {
+    var b64 = state.slice(dot + 1).replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    target = new URL(decodeURIComponent(escape(atob(b64))));
+  } catch (e) { target = null; }
+  var title = document.getElementById('title');
+  var text = document.getElementById('text');
+  if (dot < 1 || !target || (target.protocol !== 'http:' && target.protocol !== 'https:')) {
+    title.textContent = 'This sign-in link is not complete';
+    text.textContent = 'Start the sign-in again from your music node’s Settings.';
+    return;
+  }
+  q.forEach(function (v, k) { target.searchParams.set(k, v); });
+  var link = document.createElement('a');
+  link.href = target.toString();
+  link.textContent = 'Continue to ' + target.host;
+  text.textContent = '';
+  text.appendChild(link);
+  location.replace(target.toString());
+})();
+</script>
+</body>
+</html>
