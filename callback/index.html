@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-HVqxdFU9H6V/zZoNzAqqs7JtdaZuGJ1rL0lgBZLJ4F8='; style-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TZHxanTj0FB7pOEWBtgeiRAN7lYwK8jK1z6tx1+3q7g='; style-src 'unsafe-inline'">
 <meta name="referrer" content="no-referrer">
 <title>Back to your music node</title>
 <style>
@@ -20,7 +20,17 @@
 </main>
 <script>
 (function () {
-  var q = new URLSearchParams(location.search);
+  // The code must not stay in this page's history entry, whatever happens next
+  var search = location.search;
+  try { history.replaceState(null, '', location.pathname); } catch (e) { /* no history */ }
+  var title = document.getElementById('title');
+  var text = document.getElementById('text');
+  function refuse() {
+    title.textContent = 'This sign-in link is not complete';
+    text.textContent = 'Start the sign-in again from your music node\u2019s Settings. The shared sign-in returns only to a node on your own network.';
+  }
+  if (search.length > 4096) return refuse();
+  var q = new URLSearchParams(search);
   var state = q.get('state') || '';
   var dot = state.indexOf('.');
   var target = null;
@@ -29,13 +39,8 @@
     while (b64.length % 4) b64 += '=';
     target = new URL(decodeURIComponent(escape(atob(b64))));
   } catch (e) { target = null; }
-  var title = document.getElementById('title');
-  var text = document.getElementById('text');
-  if (dot < 1 || !target || (target.protocol !== 'http:' && target.protocol !== 'https:')) {
-    title.textContent = 'This sign-in link is not complete';
-    text.textContent = 'Start the sign-in again from your music node’s Settings.';
-    return;
-  }
+  if (dot < 1 || !target || (target.protocol !== 'http:' && target.protocol !== 'https:')
+      || target.username || target.password || !isLocal(target.hostname)) return refuse();
   q.forEach(function (v, k) { target.searchParams.set(k, v); });
   var link = document.createElement('a');
   link.href = target.toString();
@@ -43,6 +48,32 @@
   text.textContent = '';
   text.appendChild(link);
   location.replace(target.toString());
+
+  // A node on the browser's own network: a loopback or private address, or a local name. The
+  // URL parser has normalised the host already (0x7f.1 is 127.0.0.1, IPv6 is compressed and in
+  // brackets). Any other name is refused, however it looks (127.0.0.1.nip.io, *.ts.net).
+  // The node checks the same table before it starts a sign-in (pm-api project_apps.rs).
+  function isLocal(host) {
+    host = host.toLowerCase().replace(/\.$/, '');
+    if (host === 'localhost' || /\.localhost$/.test(host)) return true;
+    if (/\.local$/.test(host) || /\.home\.arpa$/.test(host)) return true;
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return localV4(host.split('.').map(Number));
+    if (host.charAt(0) !== '[') return false;
+    var v6 = host.slice(1, -1);
+    var mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(v6);
+    if (mapped) {
+      var hi = parseInt(mapped[1], 16), lo = parseInt(mapped[2], 16);
+      return localV4([hi >> 8, hi & 255, lo >> 8, lo & 255]);
+    }
+    if (v6 === '::1') return true;
+    var first = v6.indexOf('::') === 0 ? 0 : parseInt(v6.split(':')[0], 16);
+    return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80;
+  }
+  function localV4(o) {
+    return o[0] === 127 || o[0] === 10 || (o[0] === 172 && (o[1] & 0xf0) === 16)
+      || (o[0] === 192 && o[1] === 168) || (o[0] === 169 && o[1] === 254)
+      || (o[0] === 100 && (o[1] & 0xc0) === 64);
+  }
 })();
 </script>
 </body>
