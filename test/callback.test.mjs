@@ -75,6 +75,15 @@ test('refuses every other address', () => {
     'javascript:alert(1)',
     'data:text/html,hi',
     'ftp://127.0.0.1/cb',
+    // Parser tricks: octal, unspecified, IPv4-compatible / NAT64 / 6to4 IPv6, backslashes, two dots
+    'http://010.0.0.1/cb',
+    'http://0.0.0.0/cb',
+    'http://[::]/cb',
+    'http://[::7f00:1]/cb',
+    'http://[64:ff9b::a00:1]/cb',
+    'http://[2002:a00:1::]/cb',
+    'http:\\\\evil.example\\@127.0.0.1/cb',
+    'http://localhost../cb',
   ]) {
     const r = forwarded(cb);
     assert.equal(r.replaced, null, `${cb} is refused`);
