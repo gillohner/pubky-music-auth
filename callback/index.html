@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-UxTQafK7lIB+ZMTTJ4oNKswLXRErQyssVhYMAAznxw0='; style-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-VOz2zcNhX0QVDnVOiDtNEvPeV2+QzWkQEZqIJG/SVpE='; style-src 'unsafe-inline'">
 <meta name="referrer" content="no-referrer">
 <title>Back to your music node</title>
 <style>
@@ -44,11 +44,13 @@
     target = new URL(raw);
   } catch (e) { target = null; }
   // A node's own callback on its own network: no query or fragment of its own, and a path ending in
-  // one of the node's callbacks (any prefix before it, for a node behind a proxy)
+  // one of the node's callbacks. A prefix before it (a node behind a proxy) has only plain segments:
+  // no dot, percent sign, semicolon or other mark that could make it a script with extra path
+  // (/apply.cgi/tidal/callback) or carry parameters.
   if (dot < 1 || !target || (target.protocol !== 'http:' && target.protocol !== 'https:')
       || target.username || target.password || !isLocal(target.hostname)
       || /[?#]/.test(raw) || target.search || target.hash
-      || !/\/(tidal|spotify|drives\/[a-z0-9-]+)\/callback$/.test(target.pathname)) return refuse();
+      || !/^(\/[A-Za-z0-9_-]*)*\/(tidal|spotify|drives\/(google|onedrive))\/callback$/.test(target.pathname)) return refuse();
   // Only the sign-in's own parameters go on
   var out = new URLSearchParams();
   ['code', 'state', 'error', 'error_description', 'iss'].forEach(function (k) {

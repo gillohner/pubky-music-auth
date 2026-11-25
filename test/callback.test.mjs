@@ -51,6 +51,10 @@ test('forwards to a node on the browser\'s own network', () => {
     'http://192.168.1.5:7788/drives/google/callback',
     'http://192.168.1.5:7788/drives/onedrive/callback',
     'https://box.local/odeion/tidal/callback',
+    'https://box.local/my_proxy/odeion-2/drives/google/callback',
+    // Dot segments and a doubled slash resolve to the node's callback
+    'http://192.168.1.5/apply.cgi/../tidal/callback',
+    'http://192.168.1.5//tidal/callback',
   ]) {
     const r = forwarded(cb);
     assert.ok(r.replaced, `${cb} forwards`);
@@ -132,6 +136,17 @@ test('refuses a local address that is not a node callback', () => {
     'http://192.168.1.1/drives/callback',
     'http://192.168.1.1/drives/a/b/callback',
     'http://192.168.1.1/qobuz/callback',
+    'http://192.168.1.1/drives/other/callback',
+    'http://192.168.1.1/TIDAL/callback',
+    // A prefix that could be a script with extra path, or carry parameters
+    'http://192.168.1.1/apply.cgi/tidal/callback',
+    'http://192.168.1.1/index.php/spotify/callback',
+    'http://192.168.1.1/apply.cgi;reboot=1/tidal/callback',
+    'http://192.168.1.1/x;jsessionid=EVIL/tidal/callback',
+    'http://192.168.1.1/apply.cgi%3Freboot=1%26x=/tidal/callback',
+    'http://192.168.1.1/a%2Fb/tidal/callback',
+    'http://192.168.1.1/a:b/tidal/callback',
+    'http://192.168.1.1/a@b/drives/google/callback',
     // The target's own query or fragment
     'http://192.168.1.1/tidal/callback?reboot=1',
     'http://192.168.1.1/tidal/callback?',
@@ -148,10 +163,23 @@ test('forwards only a service answer, with only the sign-in parameters', () => {
   // No code and no error: nothing to finish
   for (const search of [`?state=${st}`, `?state=${st}&reboot=1`, `?code=&state=${st}`, `?error=&state=${st}`, ''])
     refused(run(search), search || '(empty)');
+  // Only the first code counts
+  refused(run(`?code=&code=abc&state=${st}`), 'an empty first code');
   // An error (the user said no) goes on, so the node can say so
   const denied = new URL(run(`?error=access_denied&error_description=No&state=${st}`).replaced);
+  assert.equal(denied.origin + denied.pathname, cb);
   assert.equal(denied.searchParams.get('error'), 'access_denied');
   assert.equal(denied.searchParams.get('error_description'), 'No');
+  assert.equal(denied.searchParams.get('state'), stateFor(cb));
+  // The services' own replies: extra keys stay behind, the sign-in's go on unchanged
+  const google = new URL(run(`?code=4%2F0Ab&scope=email&authuser=0&prompt=consent&state=${st}`).replaced);
+  assert.deepEqual([...google.searchParams.keys()].sort(), ['code', 'state']);
+  assert.equal(google.searchParams.get('code'), '4/0Ab');
+  const onedrive = new URL(run(`?error=access_denied&error_subcode=cancel&error_description=The+user+said+no&state=${st}`).replaced);
+  assert.deepEqual([...onedrive.searchParams.keys()].sort(), ['error', 'error_description', 'state']);
+  assert.equal(onedrive.searchParams.get('error_description'), 'The user said no');
+  const ms = new URL(run(`?code=M.C5&session_state=s1&state=${st}`).replaced);
+  assert.deepEqual([...ms.searchParams.keys()].sort(), ['code', 'state']);
   // Only code, state, error, error_description and iss; everything else stays behind
   const to = new URL(run(`?code=abc&state=${st}&iss=https%3A%2F%2Fauth.example&reboot=1&cmd=x`).replaced);
   assert.equal(to.origin + to.pathname, cb);
