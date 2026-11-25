@@ -6,7 +6,7 @@ Services only send a login back to an address registered in advance, and every s
 
 How it works:
 - The node starts the sign-in with `state = <nonce>.<base64url of its callback URL>` and a PKCE challenge.
-- The service redirects here with `code` and `state`. The page first takes the code out of its own history entry, then reads the node's callback URL from `state` and forwards the browser there with every query parameter unchanged, but only when that address is on the browser's own network:
+- The service redirects here with `code` and `state` (or `error`). The page first takes the code out of its own history entry, then reads the node's callback URL from `state` and forwards the browser there with only the sign-in's parameters (`code`, `state`, `error`, `error_description`, `iss`), but only when the request carries a `code` or an `error`, the callback is one of the node's own (a path ending in `/tidal/callback`, `/spotify/callback`, `/drives/google/callback` or `/drives/onedrive/callback`, after a prefix of plain segments (letters, digits, `-`, `_`) for a node behind a proxy, with no query or fragment of its own) and that address is on the browser's own network:
   - `localhost` and `*.localhost`, names ending in `.local` or `.home.arpa`;
   - loopback and private IPv4 addresses (127/8, 10/8, 172.16/12, 192.168/16, 169.254/16) and 100.64/10 (Tailscale and other carrier-grade NAT), written as numbers;
   - IPv6 loopback, unique-local (fc00::/7) and link-local (fe80::/10) addresses, and IPv4-mapped ones whose IPv4 part is local.
