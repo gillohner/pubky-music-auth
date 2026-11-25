@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TZHxanTj0FB7pOEWBtgeiRAN7lYwK8jK1z6tx1+3q7g='; style-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-UxTQafK7lIB+ZMTTJ4oNKswLXRErQyssVhYMAAznxw0='; style-src 'unsafe-inline'">
 <meta name="referrer" content="no-referrer">
 <title>Back to your music node</title>
 <style>
@@ -31,17 +31,30 @@
   }
   if (search.length > 4096) return refuse();
   var q = new URLSearchParams(search);
+  // Only a service's answer: a code, or an error (the user said no)
+  if (!q.get('code') && !q.get('error')) return refuse();
   var state = q.get('state') || '';
   var dot = state.indexOf('.');
+  var raw = '';
   var target = null;
   try {
     var b64 = state.slice(dot + 1).replace(/-/g, '+').replace(/_/g, '/');
     while (b64.length % 4) b64 += '=';
-    target = new URL(decodeURIComponent(escape(atob(b64))));
+    raw = decodeURIComponent(escape(atob(b64)));
+    target = new URL(raw);
   } catch (e) { target = null; }
+  // A node's own callback on its own network: no query or fragment of its own, and a path ending in
+  // one of the node's callbacks (any prefix before it, for a node behind a proxy)
   if (dot < 1 || !target || (target.protocol !== 'http:' && target.protocol !== 'https:')
-      || target.username || target.password || !isLocal(target.hostname)) return refuse();
-  q.forEach(function (v, k) { target.searchParams.set(k, v); });
+      || target.username || target.password || !isLocal(target.hostname)
+      || /[?#]/.test(raw) || target.search || target.hash
+      || !/\/(tidal|spotify|drives\/[a-z0-9-]+)\/callback$/.test(target.pathname)) return refuse();
+  // Only the sign-in's own parameters go on
+  var out = new URLSearchParams();
+  ['code', 'state', 'error', 'error_description', 'iss'].forEach(function (k) {
+    if (q.has(k)) out.set(k, q.get(k));
+  });
+  target.search = out.toString();
   var link = document.createElement('a');
   link.href = target.toString();
   link.textContent = 'Continue to ' + target.host;
